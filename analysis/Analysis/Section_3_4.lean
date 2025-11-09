@@ -41,7 +41,15 @@ theorem SetTheory.Set.mem_image {X Y:Set} (f:X → Y) (S: Set) (y:Object) :
 
 /-- Alternate definition of image using axiom of specification -/
 theorem SetTheory.Set.image_eq_specify {X Y:Set} (f:X → Y) (S: Set) :
-    image f S = Y.specify (fun y ↦ ∃ x:X, x.val ∈ S ∧ f x = y) := by sorry
+    image f S = Y.specify (fun y ↦ ∃ x:X, x.val ∈ S ∧ f x = y) := by
+  ext y
+  simp only [replacement_axiom, Subtype.coe_eq_iff, Subtype.exists, exists_and_right,
+    exists_and_left, specification_axiom'']
+  constructor
+  . rintro ⟨x, ⟨hX, hY, hxy⟩, hS⟩
+    exact ⟨hY, x, hS, hX, hxy⟩
+  . rintro ⟨hY, x, hS, hX, hxy⟩
+    exact ⟨x, ⟨hX, hY, hxy⟩, hS⟩
 
 /--
   Connection with Mathlib's notion of image.  Note the need to utilize the `Subtype.val` coercion
@@ -68,10 +76,21 @@ theorem SetTheory.Set.image_f_3_4_2 : image f_3_4_2 {1,2,3} = {2,4,6} := by
 example : (fun n:ℤ ↦ n^2) '' {-1,0,1,2} = {0,1,4} := by aesop
 
 theorem SetTheory.Set.mem_image_of_eval {X Y:Set} (f:X → Y) (S: Set) (x:X) :
-    x.val ∈ S → (f x).val ∈ image f S := by sorry
+    x.val ∈ S → (f x).val ∈ image f S := by
+  rw [mem_image]
+  intro hS
+  use x
 
 theorem SetTheory.Set.mem_image_of_eval_counter :
-    ∃ (X Y:Set) (f:X → Y) (S: Set) (x:X), ¬((f x).val ∈ image f S → x.val ∈ S) := by sorry
+    ∃ (X Y:Set) (f:X → Y) (S: Set) (x:X), ¬((f x).val ∈ image f S → x.val ∈ S) := by
+  let f (_ : Nat) : Nat := 0
+  use Nat, Nat, f, ({0}: Set), 1
+  rw [mem_image]
+  intro h
+  specialize h ?s
+  . use 0
+    simp [f]
+  . simp at h
 
 /--
   Definition 3.4.4 (inverse images).
@@ -110,7 +129,11 @@ theorem SetTheory.Set.preimage_f_3_4_2 : preimage f_3_4_2 {2,4,6} = {1,2,3} := b
   all_goals simp
 
 theorem SetTheory.Set.image_preimage_f_3_4_2 :
-    image f_3_4_2 (preimage f_3_4_2 {1,2,3}) ≠ {1,2,3} := by sorry
+    image f_3_4_2 (preimage f_3_4_2 {1,2,3}) ≠ {1,2,3} := by
+  intro h
+  simp only [SetTheory.Set.ext_iff, mem_image, mem_preimage] at h
+  specialize h 1
+  simp at h
 
 /-- Example 3.4.7 (using the Mathlib notion of preimage) -/
 example : (fun n:ℤ ↦ n^2) ⁻¹' {0,1,4} = {-2,-1,0,1,2} := by
@@ -118,7 +141,13 @@ example : (fun n:ℤ ↦ n^2) ⁻¹' {0,1,4} = {-2,-1,0,1,2} := by
   on_goal 3 => have : 2 ^ 2 = (4:ℤ) := (by norm_num); rw [←h, sq_eq_sq_iff_eq_or_eq_neg] at this
   all_goals aesop
 
-example : (fun n:ℤ ↦ n^2) ⁻¹' ((fun n:ℤ ↦ n^2) '' {-1,0,1,2}) ≠ {-1,0,1,2} := by sorry
+example : (fun n:ℤ ↦ n^2) ⁻¹' ((fun n:ℤ ↦ n^2) '' {-1,0,1,2}) ≠ {-1,0,1,2} := by
+  intro h
+  simp only [_root_.Set.image_insert_eq, _root_.Set.image_singleton, _root_.Set.preimage,
+      _root_.Set.ext_iff, _root_.Set.mem_insert_iff, _root_.Set.mem_singleton_iff,
+      _root_.Set.mem_setOf_eq] at h
+  specialize h (-2)
+  grind
 
 instance SetTheory.Set.inst_pow : Pow Set Set where
   pow := pow
@@ -169,13 +198,38 @@ theorem SetTheory.Set.example_3_4_9 (F:Object) :
 
 /-- Exercise 3.4.6 (i). One needs to provide a suitable definition of the power set here. -/
 def SetTheory.Set.powerset (X:Set) : Set :=
-  (({0,1} ^ X): Set).replace (P := sorry) (by sorry)
+  (({0,1} ^ X): Set).replace (P := fun F y ↦ ∃ f : X → ({0,1}: Set), f = F.val ∧ y = preimage f {1}) (by simp)
 
 open Classical in
 /-- Exercise 3.4.6 (i) -/
 @[simp]
 theorem SetTheory.Set.mem_powerset {X:Set} (x:Object) :
-    x ∈ powerset X ↔ ∃ Y:Set, x = Y ∧ Y ⊆ X := by sorry
+    x ∈ powerset X ↔ ∃ Y:Set, x = Y ∧ Y ⊆ X := by
+  simp only [powerset, replacement_axiom, Subtype.exists, powerset_axiom, exists_prop,
+    exists_exists_eq_and, coe_of_fun_inj, exists_eq_left]
+  constructor
+  . intro ⟨f, hx⟩
+    use preimage f {1}
+    constructor
+    . assumption
+    . intro x' hx'
+      simp at hx'
+      exact hx'.fst
+  . rintro ⟨X', hx, hX'⟩
+    let f (a : X) : ({0, 1}: Set) := if a.val ∈ X' then ⟨1, by aesop⟩ else ⟨0, by aesop⟩
+    use f
+    rw [hx, coe_eq_iff]
+    ext e
+    simp only [mem_preimage', f, mem_singleton]
+    constructor
+    . intro he
+      use ⟨e, hX' e he⟩
+      simp only [true_and]
+      split <;> simp
+    . rintro ⟨x', rfl, hf⟩
+      split at hf
+      . assumption
+      . simp at hf
 
 /-- Lemma 3.4.10 -/
 theorem SetTheory.Set.exists_powerset (X:Set) :
@@ -215,7 +269,9 @@ theorem SetTheory.Set.union_axiom (A: Set) (x:Object) :
 /-- Example 3.4.12 -/
 theorem SetTheory.Set.example_3_4_12 :
     union { (({2,3}:Set):Object), (({3,4}:Set):Object), (({4,5}:Set):Object) } = {2,3,4,5} := by
-  sorry
+  ext x
+  simp only [union_axiom, mem_insert, coe_eq_iff, mem_singleton]
+  aesop
 
 /-- Connection with Mathlib union -/
 theorem SetTheory.Set.union_eq (A: Set) :
@@ -247,7 +303,8 @@ theorem SetTheory.Set.iUnion_eq (I: Set) (A: I → Set) :
     (iUnion I A : _root_.Set Object) = ⋃ α, (A α: _root_.Set Object) := by
   ext; simp [mem_iUnion]
 
-theorem SetTheory.Set.iUnion_of_empty (A: (∅:Set) → Set) : iUnion (∅:Set) A = ∅ := by sorry
+theorem SetTheory.Set.iUnion_of_empty (A: (∅:Set) → Set) : iUnion (∅:Set) A = ∅ := by
+  ext x; simp [mem_iUnion]
 
 /-- Indexed intersection -/
 noncomputable abbrev SetTheory.Set.nonempty_choose {I:Set} (hI: I ≠ ∅) : I :=
@@ -261,61 +318,151 @@ noncomputable abbrev SetTheory.Set.iInter (I: Set) (hI: I ≠ ∅) (A: I → Set
 
 theorem SetTheory.Set.mem_iInter {I:Set} (hI: I ≠ ∅) (A: I → Set) (x:Object) :
     x ∈ iInter I hI A ↔ ∀ α:I, x ∈ A α := by
-  sorry
+  grind [specification_axiom'']
 
 /-- Exercise 3.4.1 -/
 theorem SetTheory.Set.preimage_eq_image_of_inv {X Y V:Set} (f:X → Y) (f_inv: Y → X)
   (hf: Function.LeftInverse f_inv f ∧ Function.RightInverse f_inv f) (hV: V ⊆ Y) :
-    image f_inv V = preimage f V := by sorry
+    image f_inv V = preimage f V := by
+  ext x
+  grind [replacement_axiom, specification_axiom'']
 
 /- Exercise 3.4.2.  State and prove an assertion connecting `preimage f (image f S)` and `S`. -/
--- theorem SetTheory.Set.preimage_of_image {X Y:Set} (f:X → Y) (S: Set) (hS: S ⊆ X) : sorry := by sorry
+theorem SetTheory.Set.preimage_of_image {X Y:Set} (f:X → Y) (S: Set) (hS: S ⊆ X) : S ⊆ preimage f (image f S) := by
+  intro x hx
+  simp only [mem_preimage', mem_image]
+  have hx' : x ∈ X := hS x hx
+  use ⟨x, hx'⟩
+  simp only [Subtype.exists, exists_and_left, true_and]
+  use x, hx, hx'
 
 /- Exercise 3.4.2.  State and prove an assertion connecting `image f (preimage f U)` and `U`.
 Interestingly, it is not needed for U to be a subset of Y. -/
--- theorem SetTheory.Set.image_of_preimage {X Y:Set} (f:X → Y) (U: Set) : sorry := by sorry
+theorem SetTheory.Set.image_of_preimage {X Y:Set} (f:X → Y) (U: Set) : image f (preimage f U) ⊆ U := by
+  intro x h
+  simp only [replacement_axiom, specification_axiom'', Subtype.coe_eta, exists_prop,
+    Subtype.exists] at h
+  obtain ⟨x', hx', hxx', -, hU⟩ := h
+  rwa [hxx'] at hU
 
 /- Exercise 3.4.2.  State and prove an assertion connecting `preimage f (image f (preimage f U))` and `preimage f U`.
 Interestingly, it is not needed for U to be a subset of Y.-/
--- theorem SetTheory.Set.preimage_of_image_of_preimage {X Y:Set} (f:X → Y) (U: Set) : sorry := by sorry
+theorem SetTheory.Set.preimage_of_image_of_preimage {X Y:Set} (f:X → Y) (U: Set) : preimage f (image f (preimage f U)) = preimage f U := by
+  ext x
+  simp only [specification_axiom'', replacement_axiom, Subtype.coe_eta, exists_prop, Subtype.exists]
+  constructor
+  . rintro ⟨hx, x', hx', hxx', -, hU⟩
+    rw [hxx'] at hU
+    use hx, hU
+  . intro ⟨hx, hU⟩
+    use hx, x, hx
 
 /--
   Exercise 3.4.3.
 -/
 theorem SetTheory.Set.image_of_inter {X Y:Set} (f:X → Y) (A B: Set) :
-    image f (A ∩ B) ⊆ (image f A) ∩ (image f B) := by sorry
+    image f (A ∩ B) ⊆ (image f A) ∩ (image f B) := by
+  intro y
+  simp only [replacement_axiom, mem_inter, Subtype.exists, exists_and_right, forall_exists_index,
+    and_imp]
+  rintro x hx rfl hA hB
+  constructor <;> use x <;> tauto
 
 theorem SetTheory.Set.image_of_diff {X Y:Set} (f:X → Y) (A B: Set) :
-    (image f A) \ (image f B) ⊆ image f (A \ B) := by sorry
+    (image f A) \ (image f B) ⊆ image f (A \ B) := by
+  intro y
+  simp only [mem_sdiff, replacement_axiom, Subtype.exists, exists_and_right, not_exists, not_and,
+    forall_exists_index, and_imp]
+  rintro x hx rfl hA h
+  use x; refine ⟨⟨hx, rfl⟩, hA, ?_⟩
+  apply h
+  . rfl
+  . assumption
 
 theorem SetTheory.Set.image_of_union {X Y:Set} (f:X → Y) (A B: Set) :
-    image f (A ∪ B) = (image f A) ∪ (image f B) := by sorry
+    image f (A ∪ B) = (image f A) ∪ (image f B) := by
+  ext y
+  simp only [replacement_axiom, mem_union]
+  grind
 
 def SetTheory.Set.image_of_inter' : Decidable (∀ X Y:Set, ∀ f:X → Y, ∀ A B: Set, image f (A ∩ B) = (image f A) ∩ (image f B)) := by
   -- The first line of this construction should be either `apply isTrue` or `apply isFalse`
-  sorry
+  apply isFalse
+  intro h; specialize h Nat Nat (fun _ ↦ 0) {0} {1}
+  simp only [SetTheory.Set.ext_iff, mem_image, mem_inter, mem_singleton] at h
+  replace h := (h 0).mpr ?_
+  . obtain ⟨x, ⟨h₁, h₂⟩, _⟩ := h
+    simp [h₂] at h₁
+  . constructor <;> [use 0; use 1] <;> simp
 
 def SetTheory.Set.image_of_diff' : Decidable (∀ X Y:Set, ∀ f:X → Y, ∀ A B: Set, image f (A \ B) = (image f A) \ (image f B)) := by
   -- The first line of this construction should be either `apply isTrue` or `apply isFalse`
-  sorry
+  apply isFalse
+  intro h; specialize h Nat Nat (fun _ ↦ 0) {0,1} {0}
+  simp only [SetTheory.Set.ext_iff, mem_image, mem_sdiff, mem_singleton, mem_pair] at h
+  replace h := (h 0).mp ?_
+  . absurd h.right; use 0; simp
+  . use 1; simp
 
 /-- Exercise 3.4.4 -/
 theorem SetTheory.Set.preimage_of_inter {X Y:Set} (f:X → Y) (A B: Set) :
-    preimage f (A ∩ B) = (preimage f A) ∩ (preimage f B) := by sorry
+    preimage f (A ∩ B) = (preimage f A) ∩ (preimage f B) := by
+  ext x
+  simp only [specification_axiom'', mem_inter]
+  grind
 
 theorem SetTheory.Set.preimage_of_union {X Y:Set} (f:X → Y) (A B: Set) :
-    preimage f (A ∪ B) = (preimage f A) ∪ (preimage f B) := by sorry
+    preimage f (A ∪ B) = (preimage f A) ∪ (preimage f B) := by
+  ext x
+  simp only [specification_axiom'', mem_union]
+  grind
 
 theorem SetTheory.Set.preimage_of_diff {X Y:Set} (f:X → Y) (A B: Set) :
-    preimage f (A \ B) = (preimage f A) \ (preimage f B)  := by sorry
+    preimage f (A \ B) = (preimage f A) \ (preimage f B)  := by
+  ext x
+  simp only [specification_axiom'', mem_sdiff, not_exists]
+  grind
 
 /-- Exercise 3.4.5 -/
 theorem SetTheory.Set.image_preimage_of_surj {X Y:Set} (f:X → Y) :
-    (∀ S, S ⊆ Y → image f (preimage f S) = S) ↔ Function.Surjective f := by sorry
+    (∀ S, S ⊆ Y → image f (preimage f S) = S) ↔ Function.Surjective f := by
+  constructor
+  . intro h y
+    specialize h {y.val} ?_
+    . intro y' hy'; rw [mem_singleton] at hy'
+      subst y'; exact y.property
+    . rw [SetTheory.Set.ext_iff] at h; specialize h y
+      simp only [mem_singleton, iff_true, mem_image, mem_preimage, Subtype.val_inj] at h
+      obtain ⟨x, hxy, -⟩ := h; exact ⟨x, hxy⟩
+  . intro h S hSY; ext y
+    simp only [mem_image, mem_preimage]
+    constructor
+    . rintro ⟨x, hxS, rfl⟩; exact hxS
+    . intro hyS; have ⟨x, hxy⟩ := h ⟨y, hSY y hyS⟩
+      use x; simp [hxy, hyS]
 
 /-- Exercise 3.4.5 -/
 theorem SetTheory.Set.preimage_image_of_inj {X Y:Set} (f:X → Y) :
-    (∀ S, S ⊆ X → preimage f (image f S) = S) ↔ Function.Injective f := by sorry
+    (∀ S, S ⊆ X → preimage f (image f S) = S) ↔ Function.Injective f := by
+  constructor
+  . intro h x x' hxx'
+    specialize h {x.val} ?_
+    . intro x₁ hx₁; rw [mem_singleton] at hx₁;
+      subst x₁; exact x.property
+    . rw [SetTheory.Set.ext_iff] at h; specialize h x'
+      simp only [mem_singleton, mem_preimage, mem_image, Subtype.val_inj] at h
+      replace h := h.mp ?_
+      . exact h.symm
+      . use x
+  . intro h S hSX
+    ext x; simp only [mem_preimage', mem_image]
+    constructor
+    . rintro ⟨x, rfl, x', hx'S, hxx'⟩
+      rw [Subtype.val_inj] at hxx'; specialize h hxx'
+      subst x'; assumption
+    . intro hxS; have hxX := hSX x hxS
+      use ⟨x, hxX⟩; simp only [true_and]
+      use ⟨x, hxX⟩
 
 /-- Helper lemma for Exercise 3.4.7. -/
 @[simp]
@@ -331,40 +478,83 @@ lemma SetTheory.Set.mem_union_powerset_replace_iff {S : Set} {P : S.powerset →
 /-- Exercise 3.4.7 -/
 theorem SetTheory.Set.partial_functions {X Y:Set} :
     ∃ Z:Set, ∀ F:Object, F ∈ Z ↔ ∃ X' Y':Set, X' ⊆ X ∧ Y' ⊆ Y ∧ ∃ f: X' → Y', F = f := by
-  sorry
+  let inner (X' : Set) := Y.powerset.replace (P := fun y z' ↦ ∃ (Y' : Set), Y' = y.val ∧ z' = (Y' ^ X' : Set))
+      (by aesop) |> union
+  let outer := X.powerset.replace (P := fun x z ↦ ∃ (X': Set), X' = x.val ∧ z = inner X')
+      (by aesop) |> union
+  use outer
+  intro F; simp only [outer, mem_union_powerset_replace_iff, coe_eq_iff]
+  constructor
+  . intro hF; obtain ⟨S, -, ⟨X', hX'S, rfl⟩, hF⟩ := hF
+    simp only [inner, mem_union_powerset_replace_iff, coe_eq_iff] at hF
+    obtain ⟨U, -, ⟨Y', hY'U, rfl⟩, hF⟩ := hF
+    have hX' := S.property; rw [←hX'S, mem_powerset'] at hX'
+    have hY' := U.property; rw [←hY'U, mem_powerset'] at hY'
+    rw [powerset_axiom] at hF
+    grind
+  . rintro ⟨X', Y', hX'X, hY'Y, f, rfl⟩
+    use ⟨X', by rwa [mem_powerset']⟩, inner X'
+    simp only [coe_eq_iff, exists_eq_left, true_and]
+    simp only [inner, mem_union_powerset_replace_iff, coe_eq_iff]
+    use ⟨Y', by rwa [mem_powerset']⟩, Y' ^ X'
+    simp
 
 /--
   Exercise 3.4.8.  The point of this exercise is to prove it without using the
   pairwise union operation `∪`.
 -/
 theorem SetTheory.Set.union_pair_exists (X Y:Set) : ∃ Z:Set, ∀ x, x ∈ Z ↔ (x ∈ X ∨ x ∈ Y) := by
-  sorry
+  use union {(X: Object), (Y: Object)}
+  intro x; simp only [union_axiom, mem_pair, coe_eq_iff]
+  grind
 
 /-- Exercise 3.4.9 -/
 theorem SetTheory.Set.iInter'_insensitive {I:Set} (β β':I) (A: I → Set) :
-    iInter' I β A = iInter' I β' A := by sorry
+    iInter' I β A = iInter' I β' A := by
+  ext x; simp only [specification_axiom'', exists_prop, and_congr_left_iff]
+  grind
 
 /-- Exercise 3.4.10 -/
 theorem SetTheory.Set.union_iUnion {I J:Set} (A: (I ∪ J:Set) → Set) :
     iUnion I (fun α ↦ A ⟨ α.val, by simp [α.property]⟩)
     ∪ iUnion J (fun α ↦ A ⟨ α.val, by simp [α.property]⟩)
-    = iUnion (I ∪ J) A := by sorry
+    = iUnion (I ∪ J) A := by
+  ext x; simp only [mem_union, mem_iUnion, Subtype.exists]
+  grind
 
 /-- Exercise 3.4.10 -/
-theorem SetTheory.Set.union_of_nonempty {I J:Set} (hI: I ≠ ∅) (hJ: J ≠ ∅) : I ∪ J ≠ ∅ := by sorry
+theorem SetTheory.Set.union_of_nonempty {I J:Set} (hI: I ≠ ∅) (hJ: J ≠ ∅) : I ∪ J ≠ ∅ := by
+  intro h; simp only [SetTheory.Set.ext_iff, mem_union, not_mem_empty, iff_false, not_or] at h
+  have := nonempty_def hI
+  grind
 
 /-- Exercise 3.4.10 -/
 theorem SetTheory.Set.inter_iInter {I J:Set} (hI: I ≠ ∅) (hJ: J ≠ ∅) (A: (I ∪ J:Set) → Set) :
     iInter I hI (fun α ↦ A ⟨ α.val, by simp [α.property]⟩)
     ∩ iInter J hJ (fun α ↦ A ⟨ α.val, by simp [α.property]⟩)
-    = iInter (I ∪ J) (union_of_nonempty hI hJ) A := by sorry
+    = iInter (I ∪ J) (union_of_nonempty hI hJ) A := by
+  --ext x; unfold iInter; simp only [mem_inter]
+  ext x; simp only [mem_inter, specification_axiom'', exists_prop]
+  constructor
+  . rintro ⟨⟨-, hI⟩, ⟨-, hJ⟩⟩
+    have (i : (I ∪ J).toSubtype) : x ∈ A i := by
+      obtain ⟨i, h⟩ := i; rw [mem_union] at h
+      cases' h with h h
+      . exact hI ⟨i, h⟩
+      . exact hJ ⟨i, h⟩
+    tauto
+  . grind
 
 /-- Exercise 3.4.11 -/
 theorem SetTheory.Set.compl_iUnion {X I: Set} (hI: I ≠ ∅) (A: I → Set) :
-    X \ iUnion I A = iInter I hI (fun α ↦ X \ A α) := by sorry
+    X \ iUnion I A = iInter I hI (fun α ↦ X \ A α) := by
+  ext x
+  simp only [mem_iUnion, mem_iInter, mem_sdiff, not_exists, forall_and, forall_const, Nonempty.intro (nonempty_choose hI)]
 
 /-- Exercise 3.4.11 -/
 theorem SetTheory.Set.compl_iInter {X I: Set} (hI: I ≠ ∅) (A: I → Set) :
-    X \ iInter I hI A = iUnion I (fun α ↦ X \ A α) := by sorry
+    X \ iInter I hI A = iUnion I (fun α ↦ X \ A α) := by
+  ext x
+  simp only [mem_iUnion, mem_sdiff, mem_iInter, not_forall]; tauto
 
 end Chapter3
