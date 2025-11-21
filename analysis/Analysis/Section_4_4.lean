@@ -26,10 +26,28 @@ Users of the companion who have completed the exercises in this section are welc
 
 /-- Proposition 4.4.1 (Interspersing of integers by rationals) / Exercise 4.4.1 -/
 theorem Rat.between_int (x:ℚ) : ∃! n:ℤ, n ≤ x ∧ x < n+1 := by
-  sorry
+  set n := x.num / x.den with hn
+  have hn₁ : n ≤ x := by
+    rw_mod_cast [Rat.le_iff, mul_one]
+    exact Int.ediv_mul_le _ (by simp)
+  have hn₂ : x < n + 1 := by
+    rw_mod_cast [Rat.lt_iff, ←Int.ediv_add_emod' x.num x.den, mul_one, add_one_mul]
+    gcongr
+    exact Int.natAbs_natCast x.den ▸ Int.emod_lt _ (by simp)
+  use! n, hn₁, hn₂
+  intro n' ⟨hn₁', hn₂'⟩
+  have hnn' := lt_of_le_of_lt hn₁ hn₂'
+  have hn'n := lt_of_le_of_lt hn₁' hn₂
+  rw_mod_cast [Int.lt_add_one_iff] at hn'n hnn'
+  exact le_antisymm hnn' hn'n |>.symm
 
 theorem Nat.exists_gt (x:ℚ) : ∃ n:ℕ, n > x := by
-  sorry
+  have ⟨n, ⟨hn₁, hn₂⟩, hn₃⟩ := x.between_int
+  use n.toNat + 1
+  rw [cast_add, cast_one, gt_iff_lt]
+  apply lt_of_lt_of_le hn₂
+  rw [add_le_add_iff_right]
+  exact_mod_cast Int.self_le_toNat n
 
 /-- Proposition 4.4.3 (Interspersing of rationals) -/
 theorem Rat.exists_between_rat {x y:ℚ} (h: x < y) : ∃ z:ℚ, x < z ∧ z < y := by
@@ -46,20 +64,40 @@ theorem Rat.exists_between_rat {x y:ℚ} (h: x < y) : ∃ z:ℚ, x < z ∧ z < y
 
 /-- Exercise 4.4.2 -/
 theorem Nat.no_infinite_descent : ¬ ∃ a:ℕ → ℕ, ∀ n, a (n+1) < a n := by
-  sorry
+  simp_rw [not_exists, not_forall, not_lt]
+  intro a
+  induction' ha₀ : a 0 using Nat.strongRec with a₀ ih generalizing a
+  by_cases ha₁ : a 0 ≤ a 1
+  . use 0
+  . rw [not_le, ha₀] at ha₁
+    obtain ⟨n, hn⟩ := ih (a 1) ha₁ (fun n ↦ a (n + 1)) rfl
+    use n + 1
 
 def Int.infinite_descent : Decidable (∃ a:ℕ → ℤ, ∀ n, a (n+1) < a n) := by
   -- the first line of this construction should be either `apply isTrue` or `apply isFalse`.
-  sorry
+  apply isTrue
+  use fun n ↦ -n
+  intro n
+  simp
 
 #check even_iff_exists_two_mul
 #check odd_iff_exists_bit1
 
 theorem Nat.even_or_odd'' (n:ℕ) : Even n ∨ Odd n := by
-  sorry
+  have hn := Nat.div_add_mod n 2 |>.symm
+  by_cases h : n % 2 = 0
+  . left; use n / 2
+    simpa [h, two_mul] using hn
+  . right; use n / 2
+    rw [mod_two_not_eq_zero] at h
+    simpa [h, two_mul] using hn
 
+set_option trace.grind.ematch.instance true in
 theorem Nat.not_even_and_odd (n:ℕ) : ¬ (Even n ∧ Odd n) := by
-  sorry
+  intro ⟨⟨m, hm⟩, ⟨k, hk⟩⟩
+  rw [hm, ←two_mul] at hk
+  have := Nat.eq_div_of_mul_eq_right (by decide) hk
+  simp [this, Nat.mul_add_div] at hk
 
 #check Nat.rec
 
@@ -87,10 +125,17 @@ theorem Rat.not_exist_sqrt_two : ¬ ∃ x:ℚ, x^2 = 2 := by
       choose q hpos hq using hPp.2
       have : q^2 = 2 * k^2 := by linarith
       use q; constructor
-      . sorry
+      . rw [←Nat.pow_lt_pow_iff_left (by decide : 2 ≠ 0), this, mul_pow,
+            show 2 ^ 2 = 2 * 2 by decide, mul_assoc, mul_lt_mul_left (by decide)]
+        refine' lt_mul_left _ (by decide)
+        have h : q ^ 2 ≠ 0 := Nat.pow_pos hpos |> Nat.ne_zero_of_lt
+        rw [this, mul_ne_zero_iff] at h
+        exact Nat.zero_lt_of_ne_zero h.right
       exact ⟨ hpos, k, by linarith [hPp.1], this ⟩
     have h1 : Odd (p^2) := by
-      sorry
+      obtain ⟨k, hp⟩ := hp
+      use 2 * k ^ 2 + 2 * k
+      grind
     have h2 : Even (p^2) := by
       choose q hpos hq using hPp.2
       rw [even_iff_exists_two_mul]
