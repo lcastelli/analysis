@@ -171,11 +171,31 @@ example : (0.1:ℚ).Steady ((fun n:ℕ ↦ (10:ℚ) ^ (-(n:ℤ)-1) ):Sequence) :
 /--
 Example 5.1.5: The sequence 0.1, 0.01, 0.001, ... is not 0.01-steady. Left as an exercise.
 -/
-example : ¬(0.01:ℚ).Steady ((fun n:ℕ ↦ (10:ℚ) ^ (-(n:ℤ)-1) ):Sequence) := by sorry
+example : ¬(0.01:ℚ).Steady ((fun n:ℕ ↦ (10:ℚ) ^ (-(n:ℤ)-1) ):Sequence) := by
+  simp_rw [Rat.steady_def, Rat.Close]
+  intro h
+  specialize h 0 (by decide) 1 (by decide)
+  rw [abs_of_nonneg (by norm_num)] at h
+  norm_num at h
 
 /-- Example 5.1.5: The sequence 1, 2, 4, 8, ... is not ε-steady for any ε. Left as an exercise.
 -/
-example (ε:ℚ) : ¬ ε.Steady ((fun n:ℕ ↦ (2 ^ (n+1):ℚ) ):Sequence) := by sorry
+example (ε:ℚ) : ¬ ε.Steady ((fun n:ℕ ↦ (2 ^ (n+1):ℚ) ):Sequence) := by
+  simp_rw [Rat.steady_def, Rat.Close, not_forall, not_le]
+  use 0, (by decide), (⌊ε⌋.toNat + 1), (by rw [Sequence.n0_coe]; grind)
+  by_cases hε : ε < 0
+  . exact lt_of_lt_of_le hε (abs_nonneg _)
+  . rw [not_lt] at hε
+    have hε' : 0 ≤ ⌊ε⌋ := Int.floor_nonneg.mpr <| hε
+    simp only [Sequence.eval_coe_at_int, ge_iff_le, le_refl, ↓reduceIte, Int.toNat_zero, zero_add,
+        pow_one, Int.ofNat_toNat, hε', sup_of_le_left, show 0 ≤ ⌊ε⌋ + 1 by grind]
+    norm_cast; rw [←Int.natAbs_of_nonneg (abs_nonneg _), Int.natAbs_abs]
+    apply Nat.lt_of_floor_lt
+    rw [←Int.cast_ofNat_Int, Int.toNat_add_nat hε', Int.floor_toNat, add_assoc, one_add_one_eq_two]
+    set n := ⌊ε⌋₊
+    rw [Int.subNatNat_eq_coe, ←neg_sub, ←Int.subNatNat_eq_coe, Int.natAbs_neg,
+        Int.subNatNat_of_le, Int.natAbs_cast, Nat.lt_sub_iff_add_lt] <;>
+    induction n <;> grind
 
 /-- Example 5.1.5:The sequence 2, 2, 2, ... is ε-steady for any ε > 0.
 -/
@@ -254,7 +274,12 @@ Example 5.1.7
 The sequence 10, 0, 0, ... is eventually ε-steady for every ε > 0. Left as an exercise.
 -/
 lemma Sequence.ex_5_1_7_d {ε:ℚ} (hε:ε>0) :
-    ε.EventuallySteady ((fun n:ℕ ↦ if n=0 then (10:ℚ) else (0:ℚ) ):Sequence) := by sorry
+    ε.EventuallySteady ((fun n:ℕ ↦ if n=0 then (10:ℚ) else (0:ℚ) ):Sequence) := by
+  use 1, (by decide)
+  intro n hn m hm
+  simp only [n0_coe, zero_le_one, sup_of_le_right, ge_iff_le] at hn hm
+  simp [hn, hm, show 0 ≤ n ∧ 0 ≤ m ∧ ¬ n ≤ 0 ∧ ¬ m ≤ 0 by grind]
+  exact Section_4_3.eq_if_close _ _ |>.mp rfl _ hε
 
 abbrev Sequence.IsCauchy (a:Sequence) : Prop := ∀ ε > (0:ℚ), ε.EventuallySteady a
 
@@ -299,14 +324,76 @@ noncomputable def Sequence.sqrt_two : Sequence := (fun n:ℕ ↦ ((⌊ (Real.sqr
 /--
   Example 5.1.10. (This requires extensive familiarity with Mathlib's API for the real numbers.)
 -/
-theorem Sequence.ex_5_1_10_a : (1:ℚ).Steady sqrt_two := by sorry
+theorem Sequence.ex_5_1_10_a : (1:ℚ).Steady sqrt_two := by
+  intro n hn m hm
+  rw [sqrt_two, n0_coe, ge_iff_le] at hn hm
+  lift n to ℕ using hn
+  lift m to ℕ using hm
+  wlog hmn : m ≤ n
+  . rw [not_le] at hmn; rw[Section_4_3.close_symm]; exact this m n (by omega)
+  replace hmn := Nat.sub_add_cancel hmn
+  set k := n - m
+  simp_rw [sqrt_two, eval_coe, Rat.Close, ←hmn, pow_add]
+  rw [div_sub_div _ _ (by simp) (by simp)]
+  conv => enter [1, 1, 1, 2]; rw [mul_comm, ←mul_assoc]
+  rw [←sub_mul, mul_div_mul_right _ _ (by simp), ←Rat.cast_le (K := ℝ)]
+  push_cast
+  simp_rw [←Int.self_sub_fract, abs_div]
+  rw [div_le_iff₀ (by simp), one_mul]
+  conv_lhs => ring_nf
+  conv_rhs => rw [abs_of_nonneg (by simp)]
+  set f₁ := Int.fract (√2 * 10 ^ m)
+  set f₂ := Int.fract (√2 * 10 ^ k * 10 ^ m)
+  by_cases h : 0 ≤ -f₂ + f₁ * 10 ^ k
+  . rw [abs_of_nonneg h]
+    grw [show -f₂ ≤ 0 by simp [f₂], zero_add, mul_comm, mul_le_mul_iff_of_pos_left (by simp),
+        show f₁ < 1 by simp [f₁, Int.fract_lt_one]]
+    norm_cast
+    simp [Nat.one_le_iff_ne_zero]
+  . rw [abs_of_nonpos (by grind), neg_add, neg_neg]
+    grw [show -(f₁ * 10 ^ k) ≤ 0 by simp [f₁], add_zero, show f₂ < 1 by simp [f₂, Int.fract_lt_one]]
+    norm_cast
+    simp [Nat.one_le_iff_ne_zero]
 
 /--
   Example 5.1.10. (This requires extensive familiarity with Mathlib's API for the real numbers.)
 -/
-theorem Sequence.ex_5_1_10_b : (0.1:ℚ).Steady (sqrt_two.from 1) := by sorry
+theorem Sequence.ex_5_1_10_b : (0.1:ℚ).Steady (sqrt_two.from 1) := by
+  intro n hn m hm
+  simp only [sqrt_two, n0_coe, zero_le_one, sup_of_le_right, ge_iff_le] at hn hm
+  lift n to ℕ using (by omega)
+  lift m to ℕ using (by omega)
+  norm_cast at hn hm
+  wlog hmn : m ≤ n
+  . rw [not_le] at hmn; rw[Section_4_3.close_symm]; exact this m n hm hn (by omega)
+  replace hmn := Nat.sub_add_cancel hmn
+  set k := n - m
+  rw [from_eval _ (by omega), from_eval _ (by omega), sqrt_two, eval_coe, eval_coe, Rat.Close]
+  rw [←hmn, pow_add, pow_add, div_sub_div _ _ (by simp) (by simp)]
+  conv => enter [1, 1, 1, 2]; rw [mul_comm, ←mul_assoc]
+  rw [←sub_mul, mul_div_mul_right _ _ (by simp), ←Rat.cast_le (K := ℝ)]
+  push_cast
+  simp_rw [←Int.self_sub_fract, abs_div]
+  rw [div_le_iff₀ (by simp)]
+  conv_lhs => ring_nf
+  conv_rhs =>
+    rw [abs_of_nonneg (by simp), mul_comm (10 ^ k), ←mul_assoc, ←Nat.sub_add_cancel hm,
+        pow_add, pow_one, mul_comm _ (10 : ℝ), ←mul_assoc]; norm_num
+  set f₁ := Int.fract (√2 * 10 ^ m)
+  set f₂ := Int.fract (√2 * 10 ^ k * 10 ^ m)
+  by_cases h : 0 ≤ -f₂ + f₁ * 10 ^ k
+  . rw [abs_of_nonneg h]
+    grw [show -f₂ ≤ 0 by simp [f₂], zero_add, mul_le_mul_iff_of_pos_right (by simp),
+        show f₁ < 1 by simp [f₁, Int.fract_lt_one]]
+    norm_cast
+    simp [Nat.one_le_iff_ne_zero]
+  . rw [abs_of_nonpos (by grind), neg_add, neg_neg]
+    grw [show -(f₁ * 10 ^ k) ≤ 0 by simp [f₁], add_zero, show f₂ < 1 by simp [f₂, Int.fract_lt_one]]
+    norm_cast
+    simp [Nat.one_le_iff_ne_zero]
 
-theorem Sequence.ex_5_1_10_c : (0.1:ℚ).EventuallySteady sqrt_two := by sorry
+theorem Sequence.ex_5_1_10_c : (0.1:ℚ).EventuallySteady sqrt_two := by
+  exact ⟨1, (by simp [sqrt_two]), ex_5_1_10_b⟩
 
 /-- Proposition 5.1.11. The harmonic sequence, defined as a₁ = 1, a₂ = 1/2, ... is a Cauchy sequence. -/
 theorem Sequence.IsCauchy.harmonic : (mk' 1 (fun n ↦ (1:ℚ)/n)).IsCauchy := by
@@ -364,7 +451,13 @@ lemma Sequence.isBounded_def (a:Sequence) : a.IsBounded ↔ ∃ M ≥ 0, a.Bound
 example : BoundedBy ![1,-2,3,-4] 4 := by intro i; fin_cases i <;> norm_num
 
 /-- Example 5.1.13 -/
-example : ¬((fun n:ℕ ↦ (-1)^n * (n+1:ℚ)):Sequence).IsBounded := by sorry
+example : ¬((fun n:ℕ ↦ (-1)^n * (n+1:ℚ)):Sequence).IsBounded := by
+  simp only [not_exists, ge_iff_le, not_and, not_forall, Sequence.eval_coe_at_int, not_le]
+  intro M hM
+  use ⌊M⌋₊
+  simp_rw [Nat.cast_nonneg, reduceIte, Int.toNat_natCast, abs_mul, abs_pow, abs_neg, abs_one, one_pow, one_mul]
+  rw [abs_of_nonneg (by norm_cast; simp)]
+  exact Nat.lt_floor_add_one M
 
 /-- Example 5.1.13 -/
 example : ((fun n:ℕ ↦ (-1:ℚ)^n):Sequence).IsBounded := by
@@ -399,16 +492,71 @@ lemma IsBounded.finite {n:ℕ} (a: Fin n → ℚ) : ∃ M ≥ 0,  BoundedBy a M 
 
 /-- Lemma 5.1.15 (Cauchy sequences are bounded) / Exercise 5.1.1 -/
 lemma Sequence.isBounded_of_isCauchy {a:Sequence} (h: a.IsCauchy) : a.IsBounded := by
-  sorry
+  specialize h 1 (by decide)
+  obtain ⟨i, hi₁, hi₂⟩ := h
+  let a' (i : Fin (i - a.n₀).toNat) : ℚ := a (i + a.n₀)
+  have ⟨M, hM₁, hM₂⟩ := IsBounded.finite a'
+  use max M (|(a i)| + 1), by positivity
+  intro j
+  by_cases hj₁ : j < a.n₀
+  . rw [a.vanish j hj₁, abs_zero]
+    positivity
+  rw [not_lt] at hj₁
+  by_cases hj₂ : j < i
+  . specialize hM₂ ⟨(j - a.n₀).toNat, by omega⟩
+    simp_rw [a', Int.toNat_of_nonneg (by omega : 0 ≤ j - a.n₀), sub_add_cancel] at hM₂
+    exact le_max_of_le_left hM₂
+  . rw [not_lt] at hj₂
+    specialize hi₂ j (by simp_all) i (by simp_all)
+    grw [from_eval _ hj₂, from_eval _ le_rfl, Rat.Close, ←abs_sub_abs_le_abs_sub, sub_le_iff_le_add, add_comm] at hi₂
+    exact le_max_of_le_right hi₂
 
 /-- Exercise 5.1.2 -/
 theorem Sequence.isBounded_add {a b:ℕ → ℚ} (ha: (a:Sequence).IsBounded) (hb: (b:Sequence).IsBounded):
-    (a + b:Sequence).IsBounded := by sorry
+    (a + b:Sequence).IsBounded := by
+  obtain ⟨M₁, hM₁, hM₁'⟩ := ha
+  obtain ⟨M₂, hM₂, hM₂'⟩ := hb
+  use M₁ + M₂, by positivity
+  intro i
+  specialize hM₁' i
+  specialize hM₂' i
+  simp_rw [eval_coe_at_int, Pi.add_apply] at hM₁' hM₂' ⊢
+  split_ifs with hi
+  . simp_rw [hi, if_true] at hM₁' hM₂'
+    apply le_trans (abs_add_le _ _)
+    gcongr
+  . positivity
 
 theorem Sequence.isBounded_sub {a b:ℕ → ℚ} (ha: (a:Sequence).IsBounded) (hb: (b:Sequence).IsBounded):
-    (a - b:Sequence).IsBounded := by sorry
+    (a - b:Sequence).IsBounded := by
+  obtain ⟨M₁, hM₁, hM₁'⟩ := ha
+  obtain ⟨M₂, hM₂, hM₂'⟩ := hb
+  use M₁ + M₂, by positivity
+  intro i
+  specialize hM₁' i
+  specialize hM₂' i
+  simp_rw [eval_coe_at_int, Pi.sub_apply] at hM₁' hM₂' ⊢
+  split_ifs with hi
+  . simp_rw [hi, if_true] at hM₁' hM₂'
+    rw [sub_eq_add_neg]
+    apply le_trans (abs_add_le _ _)
+    rw [abs_neg]
+    gcongr
+  . positivity
 
 theorem Sequence.isBounded_mul {a b:ℕ → ℚ} (ha: (a:Sequence).IsBounded) (hb: (b:Sequence).IsBounded):
-    (a * b:Sequence).IsBounded := by sorry
+    (a * b:Sequence).IsBounded := by
+  obtain ⟨M₁, hM₁, hM₁'⟩ := ha
+  obtain ⟨M₂, hM₂, hM₂'⟩ := hb
+  use M₁ * M₂, by positivity
+  intro i
+  specialize hM₁' i
+  specialize hM₂' i
+  simp_rw [eval_coe_at_int, Pi.mul_apply] at hM₁' hM₂' ⊢
+  split_ifs with hi
+  . simp_rw [hi, if_true] at hM₁' hM₂'
+    rw [abs_mul]
+    gcongr
+  . positivity
 
 end Chapter5
