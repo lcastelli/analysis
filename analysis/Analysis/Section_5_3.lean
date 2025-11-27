@@ -65,21 +65,38 @@ theorem CauchySequence.coe_coe {a:ℕ → ℚ} (ha: (a:Sequence).IsCauchy) : mk'
 
 /-- Proposition 5.3.3 / Exercise 5.3.1 -/
 theorem Sequence.equiv_trans {a b c:ℕ → ℚ} (hab: Equiv a b) (hbc: Equiv b c) :
-  Equiv a c := by sorry
+  Equiv a c := by
+  rw [equiv_iff] at hab hbc ⊢
+  intro ε hε
+  obtain ⟨N₁, hN₁⟩ := hab (ε / 2) (by positivity)
+  obtain ⟨N₂, hN₂⟩ := hbc (ε / 2) (by positivity)
+  use max N₁ N₂
+  intro n hn
+  specialize hN₁ n (by grind)
+  specialize hN₂ n (by grind)
+  calc
+    _ = |(a n - b n) + (b n - c n)| := by simp
+    _ ≤ |a n - b n| + |b n - c n| := by apply abs_add_le
+    _ ≤ _ := by grw [hN₁, hN₂]; simp
 
 /-- Proposition 5.3.3 / Exercise 5.3.1 -/
 instance CauchySequence.instSetoid : Setoid CauchySequence where
   r := fun a b ↦ Sequence.Equiv a b
   iseqv := {
-     refl := sorry
-     symm := sorry
-     trans := sorry
+     refl := by intro x; rw [Sequence.equiv_iff]; intro ε hε; use 0; intro n hn; rw [sub_self, abs_zero]; grind
+     symm := by intro x y hxy; rw [Sequence.equiv_iff] at hxy ⊢; peel hxy; rwa [←neg_sub, abs_neg]
+     trans := by intro a b c hab hbc; exact Sequence.equiv_trans hab hbc
   }
 
 theorem CauchySequence.equiv_iff (a b: CauchySequence) : a ≈ b ↔ Sequence.Equiv a b := by rfl
 
 /-- Every constant sequence is Cauchy -/
-theorem Sequence.IsCauchy.const (a:ℚ) : ((fun _:ℕ ↦ a):Sequence).IsCauchy := by sorry
+theorem Sequence.IsCauchy.const (a:ℚ) : ((fun _:ℕ ↦ a):Sequence).IsCauchy := by
+  rw [IsCauchy.coe]
+  intro ε hε
+  use 0
+  simp_rw [zero_le, forall_const, Section_4_3.dist, sub_self, abs_zero]
+  exact le_of_lt hε
 
 instance CauchySequence.instZero : Zero CauchySequence where
   zero := CauchySequence.mk' (a := fun _: ℕ ↦ 0) (Sequence.IsCauchy.const (0:ℚ))
@@ -177,12 +194,68 @@ theorem Real.LIM_add {a b:ℕ → ℚ} (ha: (a:Sequence).IsCauchy) (hb: (b:Seque
 /-- Proposition 5.3.10 (Product of Cauchy sequences is Cauchy) -/
 theorem Sequence.IsCauchy.mul {a b:ℕ → ℚ}  (ha: (a:Sequence).IsCauchy) (hb: (b:Sequence).IsCauchy) :
     (a * b:Sequence).IsCauchy := by
-  sorry
+  intro ε hε
+  obtain ⟨M, hM₁, hM₂⟩ := isBounded_of_isCauchy ha
+  obtain ⟨M', hM₁', hM₂'⟩ := isBounded_of_isCauchy hb
+  by_cases h : M = 0 ∨ M' = 0
+  . use 0, by simp
+    intro n hn m hm
+    lift n to ℕ using (by simpa)
+    lift m to ℕ using (by simpa)
+    have han := hM₂ n
+    have ham := hM₂ m
+    have hbn := hM₂' n
+    have hbm := hM₂' m
+    simp_rw [eval_coe] at han ham hbn hbm
+    rw [from_eval _ (by grind), from_eval _ (by grind)]
+    simp_rw [eval_coe, Rat.Close, Pi.mul_apply]
+    apply h.elim <;> (intro hM; simp_all [le_of_lt])
+  . rw [not_or, Eq.comm (b := 0), Eq.comm (b := 0)] at h
+    replace hM₁ := lt_of_le_of_ne hM₁ h.left
+    replace hM₁' := lt_of_le_of_ne hM₁' h.right
+    obtain ⟨N, _, hN⟩ := ha (ε / 2 / M') (by positivity)
+    obtain ⟨N', _, hN'⟩ := hb (ε / 2 / M) (by positivity)
+    lift N to ℕ using (by simp_all)
+    lift N' to ℕ using (by simp_all)
+    use max N N', by simp_all
+    intro n hn m hm
+    simp_rw [n0_coe] at hn hm
+    lift n to ℕ using (by grind)
+    lift m to ℕ using (by grind)
+    specialize hN n (by simp_all) m (by simp_all)
+    specialize hN' n (by simp_all) m (by simp_all)
+    specialize hM₂ m
+    specialize hM₂' n
+    rw [from_eval _ (le_of_max_le_right hn), from_eval _ (le_of_max_le_right hm)]
+    simp_rw [sup_le_iff] at hn hm
+    rw [from_eval _ hn.right.left, from_eval _ hm.right.left] at hN
+    rw [from_eval _ hn.right.right, from_eval _ hm.right.right] at hN'
+    simp_rw [eval_coe, Pi.mul_apply] at hN hN' hM₂ hM₂' ⊢
+    have := Section_4_3.close_mul_mul' hN hN'
+    rw [Rat.Close] at this ⊢
+    grw [hM₂, hM₂', div_mul_cancel₀ _ (by grind), div_mul_cancel₀ _ (by grind), add_halves] at this
+    exact this
 
 /-- Proposition 5.3.10 (Product of equivalent sequences is equivalent) / Exercise 5.3.2 -/
 theorem Sequence.mul_equiv_left {a a':ℕ → ℚ} (b:ℕ → ℚ) (hb : (b:Sequence).IsCauchy) (haa': Equiv a a') :
   Equiv (a * b) (a' * b) := by
-  sorry
+  rw [equiv_iff] at haa' ⊢
+  simp_rw [Pi.mul_apply, ←sub_mul, abs_mul]
+  intro ε hε
+  obtain ⟨M, hM₁, hM₂⟩ := isBounded_of_isCauchy hb
+  by_cases h : M = 0
+  . use 0
+    intro n _
+    specialize hM₂ n
+    rw [eval_coe, h, abs_nonpos_iff] at hM₂
+    rw [hM₂, abs_zero, mul_zero]
+    exact le_of_lt hε
+  . replace hM₁ := lt_of_le_of_ne hM₁ (by grind)
+    specialize haa' (ε / M) (by positivity)
+    peel haa' with n n' hnn' hεM
+    specialize hM₂ n'
+    rw [eval_coe] at hM₂
+    grw [hεM, hM₂, div_mul_cancel₀ _ h]
 
 /--Proposition 5.3.10 (Product of equivalent sequences is equivalent) / Exercise 5.3.2 -/
 theorem Sequence.mul_equiv_right {b b':ℕ → ℚ} (a:ℕ → ℚ)  (ha : (a:Sequence).IsCauchy)  (hbb': Equiv b b') :
@@ -223,7 +296,17 @@ theorem Real.ratCast_def (q:ℚ) : (q:Real) = LIM (fun _ ↦ q) := by rw [LIM_de
 /-- Exercise 5.3.3 -/
 @[simp]
 theorem Real.ratCast_inj (q r:ℚ) : (q:Real) = (r:Real) ↔ q = r := by
-  sorry
+  simp_rw [ratCast_def, LIM_eq_LIM (Sequence.IsCauchy.const q) (Sequence.IsCauchy.const r), Sequence.equiv_iff]
+  constructor
+  . intro h
+    simp_rw [Section_4_3.eq_if_close, Rat.Close]
+    peel h
+    obtain ⟨N, this⟩ := this
+    exact this N (by simp)
+  . intro h ε hε
+    rw [h, sub_self, abs_zero]
+    use 0
+    grind
 
 instance Real.instOfNat {n:ℕ} : OfNat Real n where
   ofNat := ((n:ℚ):Real)
@@ -238,66 +321,160 @@ instance Real.instIntCast : IntCast Real where
   intCast n := ((n:ℚ):Real)
 
 /-- ratCast distributes over addition -/
-theorem Real.ratCast_add (a b:ℚ) : (a:Real) + (b:Real) = (a+b:ℚ) := by sorry
+theorem Real.ratCast_add (a b:ℚ) : (a:Real) + (b:Real) = (a+b:ℚ) := by
+  have ha := Sequence.IsCauchy.const a
+  have hb := Sequence.IsCauchy.const b
+  simp_rw [ratCast_def, LIM_add ha hb]
+  congr
 
 /-- ratCast distributes over multiplication -/
-theorem Real.ratCast_mul (a b:ℚ) : (a:Real) * (b:Real) = (a*b:ℚ) := by sorry
+theorem Real.ratCast_mul (a b:ℚ) : (a:Real) * (b:Real) = (a*b:ℚ) := by
+  have ha := Sequence.IsCauchy.const a
+  have hb := Sequence.IsCauchy.const b
+  simp_rw [ratCast_def, LIM_mul ha hb]
+  congr
 
 noncomputable instance Real.instNeg : Neg Real where
   neg x := ((-1:ℚ):Real) * x
 
 /-- ratCast commutes with negation -/
-theorem Real.neg_ratCast (a:ℚ) : -(a:Real) = (-a:ℚ) := by sorry
+theorem Real.neg_ratCast (a:ℚ) : -(a:Real) = (-a:ℚ) := by
+  simp_rw [instNeg, show -a = -1 * a by simp, ratCast_mul]
 
 /-- It may be possible to omit the Cauchy sequence hypothesis here. -/
-theorem Real.neg_LIM (a:ℕ → ℚ) (ha: (a:Sequence).IsCauchy) : -LIM a = LIM (-a) := by sorry
+theorem Real.neg_LIM (a:ℕ → ℚ) (ha: (a:Sequence).IsCauchy) : -LIM a = LIM (-a) := by
+  simp_rw [instNeg, ratCast_def, LIM_mul (Sequence.IsCauchy.const (-1:ℚ)) ha]
+  congr
+  ext x
+  simp
 
 theorem Sequence.IsCauchy.neg (a:ℕ → ℚ) (ha: (a:Sequence).IsCauchy) :
-    ((-a:ℕ → ℚ):Sequence).IsCauchy := by sorry
+    ((-a:ℕ → ℚ):Sequence).IsCauchy := by
+  rw [←neg_one_mul]
+  exact Sequence.IsCauchy.mul (Sequence.IsCauchy.const (-1:ℚ)) ha
 
 /-- Proposition 5.3.11 (laws of algebra) -/
 noncomputable instance Real.addGroup_inst : AddGroup Real :=
-  AddGroup.ofLeftAxioms (by sorry) (by sorry) (by sorry)
+  AddGroup.ofLeftAxioms (by
+    intro a b c
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    obtain ⟨b, hb, rfl⟩ := eq_lim b
+    obtain ⟨c, hc, rfl⟩ := eq_lim c
+    have hab := Sequence.IsCauchy.add ha hb
+    have hbc := Sequence.IsCauchy.add hb hc
+    rw [LIM_add ha hb, LIM_add hab hc, LIM_add hb hc, LIM_add ha hbc, add_assoc]
+  ) (by
+    intro a
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    rw [←LIM.zero, LIM_add (Sequence.IsCauchy.const 0) ha]
+    congr; ext; simp
+  ) (by
+    intro a
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    have hn1 := Sequence.IsCauchy.const (-1)
+    have hn1a := Sequence.IsCauchy.mul hn1 ha
+    simp_rw [instNeg, ratCast_def, LIM_mul hn1 ha, LIM_add hn1a ha, ←LIM.zero]
+    congr; ext; simp
+  )
 
 theorem Real.sub_eq_add_neg (x y:Real) : x - y = x + (-y) := rfl
 
 theorem Sequence.IsCauchy.sub {a b:ℕ → ℚ} (ha: (a:Sequence).IsCauchy) (hb: (b:Sequence).IsCauchy) :
-    ((a-b:ℕ → ℚ):Sequence).IsCauchy := by sorry
+    ((a-b:ℕ → ℚ):Sequence).IsCauchy := by
+  rw [sub_eq_add_neg]
+  exact add ha (neg _ hb)
 
 /-- LIM distributes over subtraction -/
 theorem Real.LIM_sub {a b:ℕ → ℚ} (ha: (a:Sequence).IsCauchy) (hb: (b:Sequence).IsCauchy) :
-  LIM a - LIM b = LIM (a - b) := by sorry
+  LIM a - LIM b = LIM (a - b) := by
+  have hnb := Sequence.IsCauchy.neg b hb
+  rw [sub_eq_add_neg, neg_LIM b hb, LIM_add ha hnb, _root_.sub_eq_add_neg]
 
 /-- ratCast distributes over subtraction -/
-theorem Real.ratCast_sub (a b:ℚ) : (a:Real) - (b:Real) = (a-b:ℚ) := by sorry
+theorem Real.ratCast_sub (a b:ℚ) : (a:Real) - (b:Real) = (a-b:ℚ) := by
+  rw [sub_eq_add_neg, neg_ratCast, ratCast_add, _root_.sub_eq_add_neg]
 
 /-- Proposition 5.3.11 (laws of algebra) -/
 noncomputable instance Real.instAddCommGroup : AddCommGroup Real where
-  add_comm := by sorry
+  add_comm := by
+    intro a b
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    obtain ⟨b, hb, rfl⟩ := eq_lim b
+    rw [LIM_add ha hb, LIM_add hb ha, add_comm]
 
 /-- Proposition 5.3.11 (laws of algebra) -/
 noncomputable instance Real.instCommMonoid : CommMonoid Real where
-  mul_comm := by sorry
-  mul_assoc := by sorry
-  one_mul := by sorry
-  mul_one := by sorry
+  mul_comm := by
+    intro a b
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    obtain ⟨b, hb, rfl⟩ := eq_lim b
+    rw [LIM_mul ha hb, LIM_mul hb ha, mul_comm]
+  mul_assoc := by
+    intro a b c
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    obtain ⟨b, hb, rfl⟩ := eq_lim b
+    obtain ⟨c, hc, rfl⟩ := eq_lim c
+    have hab := Sequence.IsCauchy.mul ha hb
+    have hbc := Sequence.IsCauchy.mul hb hc
+    rw [LIM_mul ha hb, LIM_mul hab hc, LIM_mul hb hc, LIM_mul ha hbc, mul_assoc]
+  one_mul := by
+    intro a
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    rw [show 1 = LIM fun _ ↦ 1 by rw [←ratCast_def 1]; rfl, LIM_mul (Sequence.IsCauchy.const 1) ha]
+    congr; ext; simp
+  mul_one := by
+    intro a
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    rw [show 1 = LIM fun _ ↦ 1 by rw [←ratCast_def 1]; rfl, LIM_mul ha (Sequence.IsCauchy.const 1)]
+    congr; ext; simp
 
 /-- Proposition 5.3.11 (laws of algebra) -/
 noncomputable instance Real.instCommRing : CommRing Real where
-  left_distrib := by sorry
-  right_distrib := by sorry
-  zero_mul := by sorry
-  mul_zero := by sorry
-  mul_assoc := by sorry
-  natCast_succ := by sorry
-  intCast_negSucc := by sorry
+  left_distrib := by
+    intro a b c
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    obtain ⟨b, hb, rfl⟩ := eq_lim b
+    obtain ⟨c, hc, rfl⟩ := eq_lim c
+    have hbc := Sequence.IsCauchy.add hb hc
+    have hab := Sequence.IsCauchy.mul ha hb
+    have hac := Sequence.IsCauchy.mul ha hc
+    rw [LIM_add hb hc, LIM_mul ha hbc, LIM_mul ha hb, LIM_mul ha hc, LIM_add hab hac, left_distrib]
+  right_distrib := by
+    intro a b c
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    obtain ⟨b, hb, rfl⟩ := eq_lim b
+    obtain ⟨c, hc, rfl⟩ := eq_lim c
+    have hab := Sequence.IsCauchy.add ha hb
+    have hac := Sequence.IsCauchy.mul ha hc
+    have hbc := Sequence.IsCauchy.mul hb hc
+    rw [LIM_add ha hb, LIM_mul hab hc, LIM_mul ha hc, LIM_mul hb hc, LIM_add hac hbc, right_distrib]
+  zero_mul := by
+    intro a
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    rw [←Real.LIM.zero, LIM_mul (Sequence.IsCauchy.const 0) ha]
+    congr; ext; simp
+  mul_zero := by
+    intro a
+    obtain ⟨a, ha, rfl⟩ := eq_lim a
+    rw [←Real.LIM.zero, LIM_mul ha (Sequence.IsCauchy.const 0)]
+    congr; ext; simp
+  mul_assoc := mul_assoc
+  natCast_succ := by
+    intro n
+    simp_rw [instNatCast, show 1 = LIM fun _ ↦ 1 by rw [←ratCast_def 1]; rfl, ratCast_def,
+        LIM_add (Sequence.IsCauchy.const n) (Sequence.IsCauchy.const 1)]
+    congr; ext; simp
+  intCast_negSucc := by
+    intro n
+    simp_rw [instIntCast, Nat.cast, NatCast.natCast, neg_ratCast]
+    congr
 
 abbrev Real.ratCast_hom : ℚ →+* Real where
   toFun := RatCast.ratCast
-  map_zero' := by sorry
-  map_one' := by sorry
-  map_add' := by sorry
-  map_mul' := by sorry
+  map_zero' := by simp_rw [ratCast_def, ←LIM.zero]
+  map_one' := by simp_rw [ratCast_def, show 1 = LIM fun _ ↦ 1 by rw [←ratCast_def 1]; rfl]
+  map_add' := by intro a b; rw [ratCast_add]
+  map_mul' := by intro a b; rw [ratCast_mul]
 
 /--
   Definition 5.3.12 (sequences bounded away from zero). Sequences are indexed to start from zero
@@ -313,10 +490,27 @@ theorem bounded_away_zero_def (a:ℕ → ℚ) : BoundedAwayZero a ↔
 example : BoundedAwayZero (fun n ↦ (-1)^n) := by use 1; simp
 
 /-- Examples 5.3.13 -/
-example : ¬ BoundedAwayZero (fun n ↦ 10^(-(n:ℤ)-1)) := by sorry
+example : ¬ BoundedAwayZero (fun n ↦ 10^(-(n:ℤ)-1)) := by
+  simp_rw [not_exists, not_and, not_forall, not_le]
+  intro c hc
+  use ⌊c⁻¹⌋₊
+  rw [abs_of_nonneg (zpow_nonneg (by decide) _), ←neg_sub, sub_neg_eq_add, zpow_neg]
+  apply inv_lt_of_inv_lt₀ hc
+  apply lt_of_lt_of_le (Nat.lt_floor_add_one c⁻¹)
+  set c' := ⌊c⁻¹⌋₊
+  norm_cast
+  induction' c' with c' ih
+  . decide
+  . grw [←add_assoc, pow_add, pow_one, ←ih]
+    grind
 
 /-- Examples 5.3.13 -/
-example : ¬ BoundedAwayZero (fun n ↦ 1 - 10^(-(n:ℤ))) := by sorry
+example : ¬ BoundedAwayZero (fun n ↦ 1 - 10^(-(n:ℤ))) := by
+  simp_rw [not_exists, not_and, not_forall, not_le]
+  intro c hc
+  use 0
+  norm_num
+  exact hc
 
 /-- Examples 5.3.13 -/
 example : BoundedAwayZero (fun n ↦ 10^(n+1)) := by
@@ -326,7 +520,18 @@ example : BoundedAwayZero (fun n ↦ 10^(n+1)) := by
   gcongr <;> grind
 
 /-- Examples 5.3.13 -/
-example : ¬ ((fun (n:ℕ) ↦ (10:ℚ)^(n+1)):Sequence).IsBounded := by sorry
+example : ¬ ((fun (n:ℕ) ↦ (10:ℚ)^(n+1)):Sequence).IsBounded := by
+  simp_rw [not_exists, not_and, not_forall, not_le]
+  intro M hM
+  use ⌊M⌋₊
+  rw [Sequence.eval_coe, abs_of_nonneg (by simp)]
+  apply lt_of_lt_of_le (Nat.lt_floor_add_one M)
+  set M' := ⌊M⌋₊
+  norm_cast
+  induction' M' with M' ih
+  . decide
+  . grw [pow_add, pow_one, ←ih]
+    grind
 
 /-- Lemma 5.3.14 -/
 theorem Real.boundedAwayZero_of_nonzero {x:Real} (hx: x ≠ 0) :
@@ -339,9 +544,19 @@ theorem Real.boundedAwayZero_of_nonzero {x:Real} (hx: x ≠ 0) :
   choose ε hε hx using hx
   choose N hb' using (Sequence.IsCauchy.coe _).mp hb _ (half_pos hε)
   choose n₀ hn₀ hx using hx N
-  have how : ∀ j ≥ N, |b j| ≥ ε/2 := by sorry
+  have how : ∀ j ≥ N, |b j| ≥ ε/2 := by
+    intro j hj
+    have := Section_4_3.dist_le (b n₀) (b j) 0
+    grw [hb' n₀ hn₀ j hj, Section_4_3.dist_eq, Section_4_3.dist_eq,
+        sub_zero, sub_zero, ←hx, ←sub_le_iff_le_add', sub_half] at this
+    assumption
   set a : ℕ → ℚ := fun n ↦ if n < n₀ then ε/2 else b n
-  have not_hard : Sequence.Equiv a b := by sorry
+  have not_hard : Sequence.Equiv a b := by
+    rw [Sequence.equiv_iff]
+    intro ε hε
+    use n₀
+    intro n hn
+    simp [a, Nat.not_lt_of_le hn, le_of_lt hε]
   have ha := (Sequence.isCauchy_of_equiv not_hard).mpr hb
   refine ⟨ a, ha, ?_, by rw [(LIM_eq_LIM ha hb).mpr not_hard] ⟩
   rw [bounded_away_zero_def]
@@ -355,7 +570,16 @@ theorem Real.boundedAwayZero_of_nonzero {x:Real} (hx: x ≠ 0) :
 -/
 theorem Real.lim_of_boundedAwayZero {a:ℕ → ℚ} (ha: BoundedAwayZero a)
   (ha_cauchy: (a:Sequence).IsCauchy) :
-    LIM a ≠ 0 := by sorry
+    LIM a ≠ 0 := by
+  simp only [←LIM.zero, ne_eq, LIM_eq_LIM ha_cauchy (Sequence.IsCauchy.const 0),
+      Sequence.equiv_iff, not_forall, not_exists, not_le]
+  obtain ⟨c, hc, ha⟩ := ha
+  use c / 2, by linarith
+  intro n
+  use n, le_rfl
+  specialize ha n
+  grw [sub_zero, ha, ←sub_pos, sub_half]
+  positivity
 
 theorem Real.nonzero_of_boundedAwayZero {a:ℕ → ℚ} (ha: BoundedAwayZero a) (n: ℕ) : a n ≠ 0 := by
    choose c hc ha using ha; specialize ha n; contrapose! ha; simp [ha, hc]
@@ -417,10 +641,18 @@ theorem Real.inv_def {a:ℕ → ℚ} (h: BoundedAwayZero a) (hc: (a:Sequence).Is
 theorem Real.inv_zero : (0:Real)⁻¹ = 0 := by simp [Inv.inv]
 
 theorem Real.self_mul_inv {x:Real} (hx: x ≠ 0) : x * x⁻¹ = 1 := by
-  sorry
+  obtain ⟨x, hx₁, hx₂, rfl⟩ := boundedAwayZero_of_nonzero hx
+  rw [inv_def hx₂ hx₁, LIM_mul hx₁ (inv_isCauchy_of_boundedAwayZero hx₂ hx₁),
+      show 1 = LIM fun _ ↦ 1 by rw [←ratCast_def 1]; rfl]
+  congr; ext i
+  rw [Pi.mul_apply, Pi.inv_apply, mul_inv_cancel₀]
+  obtain ⟨c, hc, hx₂⟩ := hx₂
+  grw [←hx₂ i] at hc
+  apply ne_of_lt at hc
+  rwa [ne_comm, abs_ne_zero] at hc
 
 theorem Real.inv_mul_self {x:Real} (hx: x ≠ 0) : x⁻¹ * x = 1 := by
-  sorry
+  rw [mul_comm, self_mul_inv hx]
 
 lemma BoundedAwayZero.const {q : ℚ} (hq : q ≠ 0) : BoundedAwayZero fun _ ↦ q := by
   use |q|; simp [hq]
@@ -436,21 +668,39 @@ noncomputable instance Real.instDivInvMonoid : DivInvMonoid Real where
 theorem Real.div_eq (x y:Real) : x/y = x * y⁻¹ := rfl
 
 noncomputable instance Real.instField : Field Real where
-  exists_pair_ne := by sorry
-  mul_inv_cancel := by sorry
-  inv_zero := by sorry
-  ratCast_def := by sorry
+  exists_pair_ne := by
+    use 0, 1
+    simp only [←LIM.zero, show 1 = LIM fun _ ↦ 1 by rw [←ratCast_def 1]; rfl, ne_eq,
+        LIM_eq_LIM (Sequence.IsCauchy.const 0) (Sequence.IsCauchy.const 1), Sequence.equiv_iff,
+        not_forall, not_exists, not_le]
+    use 2⁻¹, by positivity
+    intro n
+    use n, le_rfl
+    norm_num
+  mul_inv_cancel := by intro x; exact self_mul_inv
+  inv_zero := inv_zero
+  ratCast_def := by
+    intro q
+    simp_rw [Nat.cast, NatCast.natCast, Int.cast, IntCast.intCast, div_eq, inv_ratCast, ratCast_mul, ←div_eq_mul_inv]
+    congr
+    nth_rw 1 [←Rat.num_div_den q]
   qsmul := _
   nnqsmul := _
 
-theorem Real.mul_right_cancel₀ {x y z:Real} (hz: z ≠ 0) (h: x * z = y * z) : x = y := by sorry
+theorem Real.mul_right_cancel₀ {x y z:Real} (hz: z ≠ 0) (h: x * z = y * z) : x = y := by
+  apply_fun (· * z⁻¹) at h
+  simpa [mul_assoc, hz] using h
 
 theorem Real.mul_right_nocancel : ¬ ∀ (x y z:Real), (hz: z = 0) → (x * z = y * z) → x = y := by
-  sorry
+  simp_rw [not_forall]
+  use 0, 1, 0, rfl, by norm_num
+  simp
 
 /-- Exercise 5.3.4 -/
 theorem Real.IsBounded.equiv {a b:ℕ → ℚ} (ha: (a:Sequence).IsBounded) (hab: Sequence.Equiv a b) :
-    (b:Sequence).IsBounded := by sorry
+    (b:Sequence).IsBounded := by
+  specialize hab 1 (by decide)
+  rwa [Sequence.isBounded_of_eventuallyClose hab] at ha
 
 /--
   Same as `Sequence.IsCauchy.harmonic` but reindexing the sequence as a₀ = 1, a₁ = 1/2, ...
@@ -462,6 +712,12 @@ theorem Sequence.IsCauchy.harmonic' : ((fun n ↦ 1/((n:ℚ)+1): ℕ → ℚ):Se
   simp_all
 
 /-- Exercise 5.3.5 -/
-theorem Real.LIM.harmonic : LIM (fun n ↦ 1/((n:ℚ)+1)) = 0 := by sorry
+theorem Real.LIM.harmonic : LIM (fun n ↦ 1/((n:ℚ)+1)) = 0 := by
+  rw [←LIM.zero, LIM_eq_LIM Sequence.IsCauchy.harmonic' (Sequence.IsCauchy.const 0), Sequence.equiv_iff]
+  intro ε hε
+  use ⌊ε⁻¹⌋₊
+  intro n hn
+  rw [sub_zero, abs_of_nonneg (by positivity), ←inv_eq_one_div, ←inv_le_comm₀ hε (by positivity)]
+  grw [Nat.lt_floor_add_one ε⁻¹, hn]
 
 end Chapter5
