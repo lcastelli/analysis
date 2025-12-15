@@ -39,13 +39,29 @@ theorem isLowerSet_iff (E: Set ℚ) : IsLowerSet E ↔ ∀ q r, r < q → q ∈ 
 
 abbrev Real.toSet_Rat (x:Real) : Set ℚ := { q | (q:Real) < x }
 
-lemma Real.toSet_Rat_nonempty (x:Real) : x.toSet_Rat.Nonempty := by sorry
+lemma Real.toSet_Rat_nonempty (x:Real) : x.toSet_Rat.Nonempty := by
+  obtain ⟨q, -, hq⟩ := Real.rat_between (x := x - 1) (y := x) (by linarith)
+  use q
+  exact hq
 
-lemma Real.toSet_Rat_bounded (x:Real) : BddAbove x.toSet_Rat := by sorry
+lemma Real.toSet_Rat_bounded (x:Real) : BddAbove x.toSet_Rat := by
+  obtain ⟨q, hq, -⟩ := Real.rat_between (x := x) (y := x + 1) (by linarith)
+  use q
+  intro r hr
+  exact_mod_cast le_of_lt (lt_trans hr hq)
 
-lemma Real.toSet_Rat_lower (x:Real) : IsLowerSet x.toSet_Rat := by sorry
+lemma Real.toSet_Rat_lower (x:Real) : IsLowerSet x.toSet_Rat := by
+  intro q r hrq hq
+  rw [Set.mem_setOf] at hq
+  grw [← hrq] at hq
+  exact hq
 
-lemma Real.toSet_Rat_nomax {x:Real} : ∀ q ∈ x.toSet_Rat, ∃ r ∈ x.toSet_Rat, r > q := by sorry
+lemma Real.toSet_Rat_nomax {x:Real} : ∀ q ∈ x.toSet_Rat, ∃ r ∈ x.toSet_Rat, r > q := by
+  intro q hq
+  obtain ⟨r, hr, hr'⟩ := Real.rat_between hq
+  norm_cast at hr
+  use r
+  exact ⟨hr', hr⟩
 
 abbrev Real.toCut (x:Real) : DedekindCut :=
  {
@@ -58,9 +74,16 @@ abbrev Real.toCut (x:Real) : DedekindCut :=
 
 abbrev DedekindCut.toSet_Real (c: DedekindCut) : Set Real := (fun (q:ℚ) ↦ (q:Real)) '' c.E
 
-lemma DedekindCut.toSet_Real_nonempty (c: DedekindCut) : c.toSet_Real.Nonempty := by sorry
+lemma DedekindCut.toSet_Real_nonempty (c: DedekindCut) : c.toSet_Real.Nonempty := by
+  have ⟨x, hx⟩ := c.nonempty
+  use x
+  simp [hx]
 
-lemma DedekindCut.toSet_Real_bounded (c: DedekindCut) : BddAbove c.toSet_Real := by sorry
+lemma DedekindCut.toSet_Real_bounded (c: DedekindCut) : BddAbove c.toSet_Real := by
+  have ⟨x, hx⟩ := c.bounded
+  use x
+  rintro - ⟨y, hy, rfl⟩
+  simp [hx hy]
 
 noncomputable abbrev DedekindCut.toReal (c: DedekindCut) : Real := sSup c.toSet_Real
 
@@ -71,9 +94,42 @@ noncomputable abbrev Real.equivCut : Real ≃ DedekindCut where
   toFun := toCut
   invFun := DedekindCut.toReal
   left_inv x := by
-    sorry
+    have h := DedekindCut.toReal_isLUB x.toCut
+    simp [isLUB_def, upperBound_def] at h
+    set y := x.toCut.toReal
+    have hxy : x ≤ y := by
+      by_contra!
+      have ⟨p, hp⟩ := rat_between this
+      exact lt_irrefl _ (lt_of_lt_of_le hp.left (h.left _ hp.right))
+    have hyx : y ≤ x := by
+      by_contra!
+      have ⟨p, hp⟩ := rat_between this
+      exact lt_irrefl _ (lt_of_lt_of_le hp.right (h.right p (by grind)))
+    exact eq_of_le_of_ge hyx hxy
   right_inv c := by
-    sorry
+    have hy := DedekindCut.toReal_isLUB c
+    set y := c.toReal
+    simp [isLUB_def, upperBound_def] at hy
+    simp_rw [toCut, toSet_Rat]
+    suffices {q : ℚ | q < y} = c.E by congr
+    ext p
+    constructor
+    . intro hp
+      by_contra!
+      apply not_le.mpr (Set.mem_setOf.mp hp)
+      apply hy.right p
+      norm_cast
+      have h := c.lower; rw [isLowerSet_iff] at h
+      grind
+    . intro hp
+      apply Set.mem_setOf.mpr
+      apply lt_of_le_of_ne (hy.left p hp)
+      by_contra!
+      have ⟨q, hq, hq'⟩ := c.nomax p hp
+      replace hq := hy.left q hq
+      rw [← this] at hq
+      norm_cast at hq
+      grind
 
 end Chapter5
 
@@ -81,13 +137,29 @@ end Chapter5
 
 abbrev Real.toSet_Rat (x:ℝ) : Set ℚ := { q | (q:ℝ) < x }
 
-lemma Real.toSet_Rat_nonempty (x:ℝ) : x.toSet_Rat.Nonempty := by sorry
+lemma Real.toSet_Rat_nonempty (x:ℝ) : x.toSet_Rat.Nonempty := by
+  obtain ⟨q, -, hq⟩ := exists_rat_btwn (x := x - 1) (y := x) (by linarith)
+  use q
+  exact hq
 
-lemma Real.toSet_Rat_bounded (x:ℝ) : BddAbove x.toSet_Rat := by sorry
+lemma Real.toSet_Rat_bounded (x:ℝ) : BddAbove x.toSet_Rat := by
+  obtain ⟨q, hq, -⟩ := exists_rat_btwn (x := x) (y := x + 1) (by linarith)
+  use q
+  intro r hr
+  exact_mod_cast le_of_lt (lt_trans hr hq)
 
-lemma Real.toSet_Rat_lower (x:ℝ) : IsLowerSet x.toSet_Rat := by sorry
+lemma Real.toSet_Rat_lower (x:ℝ) : IsLowerSet x.toSet_Rat := by
+  intro q r hrq hq
+  rw [Set.mem_setOf] at hq
+  grw [← hrq] at hq
+  exact hq
 
-lemma Real.toSet_Rat_nomax (x:ℝ) : ∀ q ∈ x.toSet_Rat, ∃ r ∈ x.toSet_Rat, r > q := by sorry
+lemma Real.toSet_Rat_nomax (x:ℝ) : ∀ q ∈ x.toSet_Rat, ∃ r ∈ x.toSet_Rat, r > q := by
+  intro q hq
+  obtain ⟨r, hr, hr'⟩ := exists_rat_btwn (Set.mem_setOf.mp hq)
+  norm_cast at hr
+  use r
+  exact ⟨hr', hr⟩
 
 abbrev Real.toCut (x:ℝ) : Chapter5.DedekindCut :=
  {
@@ -102,9 +174,16 @@ namespace Chapter5
 
 abbrev DedekindCut.toSet_R (c: DedekindCut) : Set ℝ := (fun (q:ℚ) ↦ (q:ℝ)) '' c.E
 
-lemma DedekindCut.toSet_R_nonempty (c: DedekindCut) : c.toSet_R.Nonempty := by sorry
+lemma DedekindCut.toSet_R_nonempty (c: DedekindCut) : c.toSet_R.Nonempty := by
+  have ⟨x, hx⟩ := c.nonempty
+  use x
+  simp [hx]
 
-lemma DedekindCut.toSet_R_bounded (c: DedekindCut) : BddAbove c.toSet_R := by sorry
+lemma DedekindCut.toSet_R_bounded (c: DedekindCut) : BddAbove c.toSet_R := by
+  have ⟨x, hx⟩ := c.bounded
+  use x
+  rintro - ⟨y, hy, rfl⟩
+  simp [hx hy]
 
 noncomputable abbrev DedekindCut.toR (c: DedekindCut) : ℝ := sSup c.toSet_R
 
@@ -117,9 +196,42 @@ noncomputable abbrev Real.equivCut : ℝ ≃ Chapter5.DedekindCut where
   toFun := _root_.Real.toCut
   invFun := Chapter5.DedekindCut.toR
   left_inv x := by
-    sorry
+    have h := Chapter5.DedekindCut.toR_isLUB x.toCut
+    simp [isLUB_iff_le_iff, mem_upperBounds] at h
+    set y := x.toCut.toR
+    have hxy : x ≤ y := by
+      by_contra!
+      have ⟨p, hp⟩ := exists_rat_btwn this
+      exact lt_irrefl _ (lt_of_lt_of_le hp.left (h y |>.mp le_rfl p hp.right))
+    have hyx : y ≤ x := by
+      by_contra!
+      have ⟨p, hp⟩ := exists_rat_btwn this
+      exact lt_irrefl _ (lt_of_lt_of_le hp.right (h p |>.mpr (by grind)))
+    exact eq_of_le_of_ge hyx hxy
   right_inv c := by
-    sorry
+    have hy := Chapter5.DedekindCut.toR_isLUB c
+    set y := c.toR
+    simp [isLUB_iff_le_iff, mem_upperBounds] at hy
+    simp_rw [toCut, toSet_Rat]
+    suffices {q : ℚ | q < y} = c.E by congr
+    ext p
+    constructor
+    . intro hp
+      by_contra!
+      apply not_le.mpr (Set.mem_setOf.mp hp)
+      apply hy p |>.mpr
+      norm_cast
+      have h := c.lower; rw [isLowerSet_iff_forall_lt] at h
+      grind
+    . intro hp
+      apply Set.mem_setOf.mpr
+      apply lt_of_le_of_ne (hy y |>.mp le_rfl p hp)
+      by_contra!
+      have ⟨q, hq, hq'⟩ := c.nomax p hp
+      replace hq := hy y |>.mp le_rfl q hq
+      rw [← this] at hq
+      norm_cast at hq
+      grind
 
 namespace Chapter5
 
